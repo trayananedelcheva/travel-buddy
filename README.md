@@ -30,34 +30,42 @@ CREATE DATABASE travel_buddy_db;
 
 ## 2. Configuration
 
-### application.yml
-Конфигурацията е в `src/main/resources/application.yml`
+### application.properties
+Конфигурацията е в `src/main/resources/application.properties`
 
-#### Задължителни промени:
+**ВАЖНО:** Вече има `application.properties.template` файл с примерна конфигурация!
 
-1. **Database Password** (ред 11):
-```yaml
-password: your_password_here  # Промени с паролата на PostgreSQL
-```
+#### Стъпки за конфигурация:
 
-2. **JWT Secret** (ред 32):
-```yaml
-jwt:
-  secret: YourBase64EncodedSecretKeyHere... # Генерирай нов secret
-```
-
-Генериране на JWT secret (PowerShell):
+1. **Копирай template файла:**
 ```powershell
+cp src/main/resources/application.properties.template src/main/resources/application.properties
+```
+
+2. **Редактирай `application.properties` и попълни:**
+
+**Database Password:**
+```properties
+spring.datasource.password=ТВОЯТА_POSTGRESQL_ПАРОЛА
+```
+
+**JWT Secret** (генерирай нов):
+```powershell
+# PowerShell команда за генериране:
 $bytes = New-Object byte[] 64
 [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
 [Convert]::ToBase64String($bytes)
 ```
 
-3. **Google Places API Key** (ред 36):
-```yaml
-google:
-  places:
-    api-key: YOUR_GOOGLE_PLACES_API_KEY_HERE
+После добави в application.properties:
+```properties
+jwt.secret=ГЕНЕРИРАНИЯТ_BASE64_STRING
+jwt.expiration=86400000
+```
+
+**Google Places API Key:**
+```properties
+google.places.api-key=ТВОЯТ_GOOGLE_API_KEY
 ```
 
 ### Получаване на Google Places API Key
@@ -77,29 +85,37 @@ google:
 
 ## 3. Стартиране на приложението
 
-### Вариант 1: Maven Wrapper
+### Вариант 1: Maven (Препоръчително)
 ```powershell
-# Компилиране
-.\mvnw.cmd clean compile
-
-# Стартиране
-.\mvnw.cmd spring-boot:run
+# Стартиране (компилира автоматично)
+mvn spring-boot:run
 ```
 
 ### Вариант 2: JAR файл
 ```powershell
 # Build
-.\mvnw.cmd clean package -DskipTests
+mvn clean package -DskipTests
 
 # Run
 java -jar target/travel-buddy-0.0.1-SNAPSHOT.jar
 ```
 
+### Вариант 3: Със wrapper (ако нямаш глобален Maven)
+```bash
+# Windows
+.\mvnw.cmd spring-boot:run
+
+# Unix/Linux/Mac
+./mvnw spring-boot:run
+```
+
+**Приложението ще стартира на:** `http://localhost:8081`
+
 ## 4. Тестване на API endpoints
 
 ### Регистрация на потребител
 ```bash
-curl -X POST http://localhost:8080/api/auth/register \
+curl -X POST http://localhost:8081/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -112,7 +128,7 @@ curl -X POST http://localhost:8080/api/auth/register \
 
 ### Login (получаване на JWT token)
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost:8081/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "username": "testuser",
@@ -134,15 +150,15 @@ curl -X POST http://localhost:8080/api/auth/login \
 TOKEN="eyJhbGciOiJIUzI1NiJ9..."
 
 # Взимане на профил
-curl http://localhost:8080/api/users/me \
+curl http://localhost:8081/api/users/me \
   -H "Authorization: Bearer $TOKEN"
 
 # Търсене на места
-curl "http://localhost:8080/api/places/search?query=restaurant&latitude=42.6977&longitude=23.3219" \
+curl "http://localhost:8081/api/places/search?query=restaurant&latitude=42.6977&longitude=23.3219" \
   -H "Authorization: Bearer $TOKEN"
 
 # Създаване на трип
-curl -X POST http://localhost:8080/api/trips \
+curl -X POST http://localhost:8081/api/trips \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -155,7 +171,7 @@ curl -X POST http://localhost:8080/api/trips \
   }'
 
 # Reality Check validation
-curl -X POST http://localhost:8080/api/validation/trips/1 \
+curl -X POST http://localhost:8081/api/validation/trips/1 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -203,8 +219,8 @@ curl -X POST http://localhost:8080/api/validation/trips/1 \
 ## 6. Troubleshooting
 
 ### "Connection refused" при стартиране
-- Провери че PostgreSQL е стартиран
-- Провери че порт 8080 е свободен
+- Провери че PostgreSQL е стартиран и работи
+- Провери че порт 8081 е свободен (приложението работи на 8081)
 
 ### "Invalid API key" за Google Places
 - Провери че Places API е enabled в Google Cloud Console
@@ -215,9 +231,10 @@ curl -X POST http://localhost:8080/api/validation/trips/1 \
 - Изтрий старите JWT tokens и направи нов login
 
 ### Database connection failed
-- Провери username/password в application.yml
+- Провери username/password в `application.properties`
 - Провери че базата `travel_buddy_db` съществува
-- Провери порт (default: 5432)
+- Провери PostgreSQL порт (default: 5432)
+- Уверете се че PostgreSQL service е running
 
 ## 7. Production Recommendations
 
