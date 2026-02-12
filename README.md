@@ -4,7 +4,7 @@
 
 - Java 21 (SapMachine JDK или Oracle JDK)
 - PostgreSQL 12+ database
-- Google Places API Key
+- Foursquare Places API Key
 - Maven (включен чрез wrapper)
 
 ## 1. Database Setup
@@ -63,25 +63,23 @@ jwt.secret=ГЕНЕРИРАНИЯТ_BASE64_STRING
 jwt.expiration=86400000
 ```
 
-**Google Places API Key:**
+**Foursquare Places API Key:**
 ```properties
-google.places.api-key=ТВОЯТ_GOOGLE_API_KEY
+foursquare.api-key=ТВОЯТ_FOURSQUARE_API_KEY
 ```
 
-### Получаване на Google Places API Key
+### Получаване на Foursquare Places API Key
 
-1. Отиди на Google Cloud Console: https://console.cloud.google.com/
-2. Създай нов проект или избери съществуващ
-3. Активирай **Places API** и **Geocoding API**:
-   - APIs & Services → Library
-   - Търси "Places API" → Enable
-   - Търси "Geocoding API" → Enable
-4. Създай Credentials:
-   - APIs & Services → Credentials
-   - Create Credentials → API Key
-   - Копирай API key и постави в `application.yml`
+1. Отиди на Foursquare Developers: https://location.foursquare.com/developer/
+2. Създай акаунт (безплатна регистрация, БЕЗ кредитна карта)
+3. Създай нов проект:
+   - Projects → Create New Project
+   - Избери Project Type: "Places"
+4. Генерирай API Key:
+   - Generate API Key
+   - Копирай API key и постави в `application.properties`
 
-**Важно:** За development можеш да оставиш API key без restrictions, но за production задай ограничения.
+**Важно:** Free tier предлага достатъчно заявки за development. API key работи веднага след генериране.
 
 ## 3. Стартиране на приложението
 
@@ -222,9 +220,10 @@ curl -X POST http://localhost:8081/api/validation/trips/1 \
 - Провери че PostgreSQL е стартиран и работи
 - Провери че порт 8081 е свободен (приложението работи на 8081)
 
-### "Invalid API key" за Google Places
-- Провери че Places API е enabled в Google Cloud Console
-- Провери че API key е копиран правилно
+### "Invalid API key" за Foursquare Places
+- Провери че API key е копиран правилно от Foursquare Developer Portal
+- Провери че използваш правилния формат: `foursquare.api-key` в application.properties
+- Уверете се че API key е активен (може да отнеме минута след генериране)
 
 ### "JWT signature does not match"
 - Генерирай нов JWT secret и рестартирай приложението
@@ -242,7 +241,7 @@ curl -X POST http://localhost:8081/api/validation/trips/1 \
    - Промени JWT secret със силен криптографски ключ
    - Използвай environment variables вместо hardcoded стойности
    - Добави rate limiting
-   - Рестриктирай Google API key по IP/domain
+   - Мониторирай Foursquare API usage в Developer Portal
 
 2. **Database**:
    - Промени `ddl-auto: update` на `validate` в production
@@ -263,5 +262,5 @@ curl -X POST http://localhost:8081/api/validation/trips/1 \
 - **Java**: 21 (SapMachine JDK)
 - **Database**: PostgreSQL
 - **Security**: Spring Security + JWT
-- **External APIs**: Google Places API, Open-Meteo Weather API
+- **External APIs**: Foursquare Places API v3, Open-Meteo Weather API
 - **Build Tool**: Maven
