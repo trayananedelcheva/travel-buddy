@@ -18,10 +18,21 @@ public class WebClientConfig {
     private int readTimeout;
 
     /**
-     * WebClient за Google Places API
+     * WebClient за OpenStreetMap Nominatim API (заменя Google Places)
+     */
+    @Bean(name = "openStreetMapWebClient")
+    public WebClient openStreetMapWebClient(@Value("${openstreetmap.base-url:https://nominatim.openstreetmap.org}") String baseUrl) {
+        return WebClient.builder()
+                .baseUrl(baseUrl)
+                .build();
+    }
+
+    /**
+     * WebClient за Google Places API (deprecated - използва се openStreetMapWebClient)
      */
     @Bean(name = "googlePlacesWebClient")
-    public WebClient googlePlacesWebClient(@Value("${google.places.base-url}") String baseUrl) {
+    @Deprecated
+    public WebClient googlePlacesWebClient(@Value("${google.places.base-url:https://maps.googleapis.com/maps/api/place}") String baseUrl) {
         return WebClient.builder()
                 .baseUrl(baseUrl)
                 .build();

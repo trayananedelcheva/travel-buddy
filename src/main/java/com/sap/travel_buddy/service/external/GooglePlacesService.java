@@ -1,140 +1,174 @@
 package com.sap.travel_buddy.service.external;
 
-import com.sap.travel_buddy.config.GooglePlacesConfig;
+import com.sap.travel_buddy.config.OpenStreetMapConfig;
 import com.sap.travel_buddy.domain.Place;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Service за интеграция с Google Places API
+ * Service за интеграция с OpenStreetMap Nominatim API
+ * (заменя Google Places API)
  */
 @Service
 @Slf4j
 public class GooglePlacesService {
 
     private final WebClient webClient;
-    private final GooglePlacesConfig config;
+    private final OpenStreetMapConfig config;
 
-    public GooglePlacesService(@Qualifier("googlePlacesWebClient") WebClient webClient, 
-                               GooglePlacesConfig config) {
+    public GooglePlacesService(@Qualifier("openStreetMapWebClient") WebClient webClient, 
+                               OpenStreetMapConfig config) {
         this.webClient = webClient;
         this.config = config;
     }
 
     /**
-     * Търсене на места по текстов query
+     * Търсене на места по текстов query (използва OpenStreetMap Nominatim)
      */
     public List<Place> searchPlacesByText(String query, Double latitude, Double longitude, Integer radius) {
-        log.debug("Searching places with query: {}", query);
+        log.debug("Searching places with query: {} near {},{}", query, latitude, longitude);
 
         try {
-            String url = String.format("/textsearch/json?query=%s&key=%s", 
-                    query, config.getApiKey());
-            
-            if (latitude != null && longitude != null) {
-                url += String.format("&location=%f,%f", latitude, longitude);
-            }
-            if (radius != null) {
-                url += String.format("&radius=%d", radius);
-            }
+            // OpenStreetMap Nominatim API: /search
+            String uri = UriComponentsBuilder.fromPath("/search")
+                    .queryParam("q", query)
+                    .queryParam("format", "json")
+                    .queryParam("limit", 10)
+                    .queryParam("addressdetails", 1)
+                    .build()
+                    .toUriString();
 
-            Map<String, Object> response = webClient.get()
-                    .uri(url)
+            List results = webClient.get()
+                    .uri(uri)
+                    .header("User-Agent", config.getUserAgent())
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToFlux(Map.class)
+                    .collectList()
                     .block();
 
-            return parseGooglePlacesResponse(response);
+            return parseNominatimResponse((List<Map<String, Object>>) results);
             
         } catch (Exception e) {
-            log.error("Error searching places: {}", e.getMessage());
+            log.error("Error searching places with OpenStreetMap: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
 
     /**
-     * Търсене на места наблизо
+     * Търсене на места наблизо (използва OpenStreetMap Nominatim reverse geocoding + search)
      */
     public List<Place> searchNearbyPlaces(Double latitude, Double longitude, Integer radius, String type) {
-        log.debug("Searching nearby places at {},{} with radius {}", latitude, longitude, radius);
+        log.debug("Searching nearby places at {},{} with type {}", latitude, longitude, type);
 
         try {
-            String url = String.format("/nearbysearch/json?location=%f,%f&radius=%d&key=%s",
-                    latitude, longitude, radius != null ? radius : 5000, config.getApiKey());
+            // OpenStreetMap не поддържа директно nearby search по тип
+            // Използваме reverse geocoding за да вземем град/адрес, после търсим по тип
+            String cityQuery = getCityFromCoordinates(latitude, longitude);
             
-            if (type != null && !type.isEmpty()) {
-                url += String.format("&type=%s", type);
-            }
+            String searchQuery = type != null && !type.isEmpty() 
+                ? type + " in " + cityQuery 
+                : cityQuery;
 
-            Map<String, Object> response = webClient.get()
-                    .uri(url)
-                    .retrieve()
-                    .bodyToMono(Map.class)
-                    .block();
-
-            return parseGooglePlacesResponse(response);
+            return searchPlacesByText(searchQuery, latitude, longitude, radius);
             
         } catch (Exception e) {
-            log.error("Error searching nearby places: {}", e.getMessage());
+            log.error("Error searching nearby places: {}", e.getMessage(), e);
             return new ArrayList<>();
         }
     }
 
     /**
-     * Взимане на детайли за конкретно място
+     * Взимане на град от координати (reverse geocoding)
+     */
+    private String getCityFromCoordinates(Double latitude, Double longitude) {
+        try {
+            String uri = UriComponentsBuilder.fromPath("/reverse")
+                    .queryParam("lat", latitude)
+                    .queryParam("lon", longitude)
+                    .queryParam("format", "json")
+                    .build()
+                    .toUriString();
+
+            Map<String, Object> result = webClient.get()
+                    .uri(uri)
+                    .header("User-Agent", config.getUserAgent())
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            if (result != null && result.containsKey("address")) {
+                Map<String, Object> address = (Map<String, Object>) result.get("address");
+                String city = (String) address.get("city");
+                if (city == null) city = (String) address.get("town");
+                if (city == null) city = (String) address.get("village");
+                if (city != null) return city;
+            }
+            
+        } catch (Exception e) {
+            log.warn("Error getting city from coordinates: {}", e.getMessage());
+        }
+        
+        return "nearby";
+    }
+
+    /**
+     * Взимане на детайли за конкретно място (по OSM place_id)
      */
     public Place getPlaceDetails(String placeId) {
         log.debug("Getting details for place: {}", placeId);
 
         try {
-            String url = String.format("/details/json?place_id=%s&key=%s&fields=name,formatted_address,geometry,rating,user_ratings_total,opening_hours,types,formatted_phone_number,website",
-                    placeId, config.getApiKey());
+            // OpenStreetMap Nominatim: /lookup по OSM place_id
+            String uri = UriComponentsBuilder.fromPath("/lookup")
+                    .queryParam("osm_ids", placeId)
+                    .queryParam("format", "json")
+                    .queryParam("addressdetails", 1)
+                    .build()
+                    .toUriString();
 
-            Map<String, Object> response = webClient.get()
-                    .uri(url)
+            List results = webClient.get()
+                    .uri(uri)
+                    .header("User-Agent", config.getUserAgent())
                     .retrieve()
-                    .bodyToMono(Map.class)
+                    .bodyToFlux(Map.class)
+                    .collectList()
                     .block();
 
-            if (response != null && "OK".equals(response.get("status"))) {
-                Map<String, Object> result = (Map<String, Object>) response.get("result");
-                return parsePlace(result, placeId);
+            if (results != null && !results.isEmpty()) {
+                return parsePlace((Map<String, Object>) results.get(0));
             }
             
         } catch (Exception e) {
-            log.error("Error getting place details: {}", e.getMessage());
+            log.error("Error getting place details: {}", e.getMessage(), e);
         }
         
         return null;
     }
 
     /**
-     * Парсване на Google Places API response
+     * Парсване на OpenStreetMap Nominatim response
      */
-    private List<Place> parseGooglePlacesResponse(Map<String, Object> response) {
+    private List<Place> parseNominatimResponse(List<Map<String, Object>> results) {
         List<Place> places = new ArrayList<>();
         
-        if (response == null || !"OK".equals(response.get("status"))) {
-            log.warn("Google Places API returned non-OK status: {}", 
-                    response != null ? response.get("status") : "null");
+        if (results == null || results.isEmpty()) {
+            log.warn("OpenStreetMap returned no results");
             return places;
         }
 
-        List<Map<String, Object>> results = (List<Map<String, Object>>) response.get("results");
-        if (results != null) {
-            for (Map<String, Object> result : results) {
-                String placeId = (String) result.get("place_id");
-                Place place = parsePlace(result, placeId);
-                if (place != null) {
-                    places.add(place);
-                }
+        for (Map<String, Object> result : results) {
+            Place place = parsePlace(result);
+            if (place != null) {
+                places.add(place);
             }
         }
 
@@ -142,54 +176,44 @@ public class GooglePlacesService {
     }
 
     /**
-     * Парсване на отделно място от JSON
+     * Парсване на отделно място от OpenStreetMap JSON
      */
-    private Place parsePlace(Map<String, Object> json, String placeId) {
+    private Place parsePlace(Map<String, Object> json) {
         try {
             Place place = new Place();
+            
+            // OSM place_id вместо Google place_id
+            Object placeIdObj = json.get("place_id");
+            String placeId = placeIdObj != null ? placeIdObj.toString() : null;
             place.setGooglePlaceId(placeId);
+            
             place.setName((String) json.get("name"));
-            place.setAddress((String) json.get("formatted_address"));
+            place.setAddress((String) json.get("display_name"));
 
-            // Geometry (координати)
-            Map<String, Object> geometry = (Map<String, Object>) json.get("geometry");
-            if (geometry != null) {
-                Map<String, Object> location = (Map<String, Object>) geometry.get("location");
-                if (location != null) {
-                    place.setLatitude(((Number) location.get("lat")).doubleValue());
-                    place.setLongitude(((Number) location.get("lng")).doubleValue());
-                }
+            // Координати (OpenStreetMap: lat, lon като strings)
+            if (json.containsKey("lat") && json.containsKey("lon")) {
+                place.setLatitude(Double.parseDouble(json.get("lat").toString()));
+                place.setLongitude(Double.parseDouble(json.get("lon").toString()));
             }
 
-            // Рейтинг
-            if (json.containsKey("rating")) {
-                place.setRating(((Number) json.get("rating")).doubleValue());
-            }
-            if (json.containsKey("user_ratings_total")) {
-                place.setUserRatingsTotal(((Number) json.get("user_ratings_total")).intValue());
-            }
-
-            // Типове
-            List<String> types = (List<String>) json.get("types");
-            if (types != null && !types.isEmpty()) {
-                place.setTypes(String.join(",", types));
+            // Тип (OpenStreetMap: class + type)
+            String osmClass = (String) json.get("class");
+            String osmType = (String) json.get("type");
+            if (osmClass != null && osmType != null) {
+                place.setTypes(osmClass + ":" + osmType);
             }
 
-            // Работно време (опростено)
-            Map<String, Object> openingHours = (Map<String, Object>) json.get("opening_hours");
-            if (openingHours != null) {
-                place.setCurrentlyOpen((Boolean) openingHours.get("open_now"));
-                // TODO: парсване на конкретни часове
-            }
-
-            // Контакти
-            place.setPhoneNumber((String) json.get("formatted_phone_number"));
-            place.setWebsite((String) json.get("website"));
+            // OpenStreetMap няма рейтинги, opening hours, phone - оставяме null
+            place.setRating(null);
+            place.setUserRatingsTotal(null);
+            place.setCurrentlyOpen(null);
+            place.setPhoneNumber(null);
+            place.setWebsite(null);
 
             return place;
             
         } catch (Exception e) {
-            log.error("Error parsing place: {}", e.getMessage());
+            log.error("Error parsing place: {}", e.getMessage(), e);
             return null;
         }
     }
