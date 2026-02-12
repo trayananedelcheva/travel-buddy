@@ -5,15 +5,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Конфигурация за Google Places API properties
+ * Конфигурация за Foursquare Places API
  */
 @Configuration
 @Getter
-public class GooglePlacesConfig {
+public class FoursquareConfig {
 
-    @Value("${google.places.api-key}")
+    @Value("${foursquare.api-key}")
     private String apiKey;
 
-    @Value("${google.places.base-url}")
+    @Value("${foursquare.base-url:https://places-api.foursquare.com}")
     private String baseUrl;
 }

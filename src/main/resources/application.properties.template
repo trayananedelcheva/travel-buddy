@@ -23,11 +23,12 @@ spring.jpa.open-in-view=false
 jwt.secret=YOUR_BASE64_ENCODED_SECRET_KEY_HERE_MINIMUM_256_BITS
 jwt.expiration=86400000
 
-# Google Places API
-google.places.api-key=YOUR_GOOGLE_PLACES_API_KEY_HERE
-google.places.base-url=https://maps.googleapis.com/maps/api
+# Foursquare Places API v3 (free tier: 1000 requests/day, NO credit card required)
+# Get your API key at: https://location.foursquare.com/developer/
+foursquare.api-key=YOUR_FOURSQUARE_API_KEY_HERE
+foursquare.base-url=https://api.foursquare.com/v3
 
-# Weather API (Open-Meteo)
+# Weather API (Open-Meteo - 100% free, no API key required)
 weather.api.base-url=https://api.open-meteo.com/v1
 
 # Timeouts

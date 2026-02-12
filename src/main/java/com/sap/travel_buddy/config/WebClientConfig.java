@@ -18,10 +18,21 @@ public class WebClientConfig {
     private int readTimeout;
 
     /**
-     * WebClient за Google Places API
+     * WebClient за Foursquare Places API v3 (заменя Google Places)
+     */
+    @Bean(name = "foursquareWebClient")
+    public WebClient foursquareWebClient(@Value("${foursquare.base-url:https://api.foursquare.com/v3}") String baseUrl) {
+        return WebClient.builder()
+                .baseUrl(baseUrl)
+                .build();
+    }
+
+    /**
+     * WebClient за Google Places API (deprecated - използва се foursquareWebClient)
      */
     @Bean(name = "googlePlacesWebClient")
-    public WebClient googlePlacesWebClient(@Value("${google.places.base-url}") String baseUrl) {
+    @Deprecated
+    public WebClient googlePlacesWebClient(@Value("${google.places.base-url:https://maps.googleapis.com/maps/api/place}") String baseUrl) {
         return WebClient.builder()
                 .baseUrl(baseUrl)
                 .build();
