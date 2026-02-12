@@ -27,8 +27,15 @@ public class PlaceController {
      */
     @PostMapping("/search")
     public ResponseEntity<List<PlaceDto>> searchPlaces(@RequestBody PlaceSearchRequest request) {
+        System.out.println("\n\n=== CONTROLLER START ===");
+        System.out.println("Request object: " + request);
+        System.out.println("Query: '" + request.getQuery() + "'");
+        System.out.println("Lat: " + request.getLatitude());
+        System.out.println("Lon: " + request.getLongitude());
+        System.out.println("Radius: " + request.getRadius());
         log.info("Search request: {}", request);
         List<PlaceDto> places = placeService.searchPlaces(request);
+        System.out.println("Returning " + places.size() + " places\n\n");
         return ResponseEntity.ok(places);
     }
 

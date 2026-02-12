@@ -21,7 +21,7 @@ public class WebClientConfig {
      * WebClient за Foursquare Places API v3 (заменя Google Places)
      */
     @Bean(name = "foursquareWebClient")
-    public WebClient foursquareWebClient(@Value("${foursquare.base-url:https://api.foursquare.com/v3}") String baseUrl) {
+    public WebClient foursquareWebClient(@Value("${foursquare.base-url:https://places-api.foursquare.com}") String baseUrl) {
         return WebClient.builder()
                 .baseUrl(baseUrl)
                 .build();
