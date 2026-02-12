@@ -15,11 +15,14 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/places")
-@RequiredArgsConstructor
 @Slf4j
 public class PlaceController {
 
     private final PlaceService placeService;
+
+    public PlaceController(PlaceService placeService) {
+        this.placeService = placeService;
+    }
 
     /**
      * Търсене на места

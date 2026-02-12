@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,13 +19,13 @@ import java.util.Map;
  */
 @Service
 @Slf4j
-public class GooglePlacesService {
+public class OpenStreetMapService {
 
     private final WebClient webClient;
     private final OpenStreetMapConfig config;
 
-    public GooglePlacesService(@Qualifier("openStreetMapWebClient") WebClient webClient, 
-                               OpenStreetMapConfig config) {
+    public OpenStreetMapService(@Qualifier("openStreetMapWebClient") WebClient webClient,
+                                OpenStreetMapConfig config) {
         this.webClient = webClient;
         this.config = config;
     }
@@ -38,7 +37,6 @@ public class GooglePlacesService {
         log.debug("Searching places with query: {} near {},{}", query, latitude, longitude);
 
         try {
-            // OpenStreetMap Nominatim API: /search
             String uri = UriComponentsBuilder.fromPath("/search")
                     .queryParam("q", query)
                     .queryParam("format", "json")
@@ -56,7 +54,7 @@ public class GooglePlacesService {
                     .block();
 
             return parseNominatimResponse((List<Map<String, Object>>) results);
-            
+
         } catch (Exception e) {
             log.error("Error searching places with OpenStreetMap: {}", e.getMessage(), e);
             return new ArrayList<>();
@@ -70,16 +68,14 @@ public class GooglePlacesService {
         log.debug("Searching nearby places at {},{} with type {}", latitude, longitude, type);
 
         try {
-            // OpenStreetMap не поддържа директно nearby search по тип
-            // Използваме reverse geocoding за да вземем град/адрес, после търсим по тип
             String cityQuery = getCityFromCoordinates(latitude, longitude);
-            
-            String searchQuery = type != null && !type.isEmpty() 
-                ? type + " in " + cityQuery 
-                : cityQuery;
+
+            String searchQuery = type != null && !type.isEmpty()
+                    ? type + " in " + cityQuery
+                    : cityQuery;
 
             return searchPlacesByText(searchQuery, latitude, longitude, radius);
-            
+
         } catch (Exception e) {
             log.error("Error searching nearby places: {}", e.getMessage(), e);
             return new ArrayList<>();
@@ -112,11 +108,11 @@ public class GooglePlacesService {
                 if (city == null) city = (String) address.get("village");
                 if (city != null) return city;
             }
-            
+
         } catch (Exception e) {
             log.warn("Error getting city from coordinates: {}", e.getMessage());
         }
-        
+
         return "nearby";
     }
 
@@ -127,7 +123,6 @@ public class GooglePlacesService {
         log.debug("Getting details for place: {}", placeId);
 
         try {
-            // OpenStreetMap Nominatim: /lookup по OSM place_id
             String uri = UriComponentsBuilder.fromPath("/lookup")
                     .queryParam("osm_ids", placeId)
                     .queryParam("format", "json")
@@ -146,11 +141,11 @@ public class GooglePlacesService {
             if (results != null && !results.isEmpty()) {
                 return parsePlace((Map<String, Object>) results.get(0));
             }
-            
+
         } catch (Exception e) {
             log.error("Error getting place details: {}", e.getMessage(), e);
         }
-        
+
         return null;
     }
 
@@ -159,7 +154,7 @@ public class GooglePlacesService {
      */
     private List<Place> parseNominatimResponse(List<Map<String, Object>> results) {
         List<Place> places = new ArrayList<>();
-        
+
         if (results == null || results.isEmpty()) {
             log.warn("OpenStreetMap returned no results");
             return places;
@@ -181,29 +176,25 @@ public class GooglePlacesService {
     private Place parsePlace(Map<String, Object> json) {
         try {
             Place place = new Place();
-            
-            // OSM place_id вместо Google place_id
+
             Object placeIdObj = json.get("place_id");
             String placeId = placeIdObj != null ? placeIdObj.toString() : null;
             place.setGooglePlaceId(placeId);
-            
+
             place.setName((String) json.get("name"));
             place.setAddress((String) json.get("display_name"));
 
-            // Координати (OpenStreetMap: lat, lon като strings)
             if (json.containsKey("lat") && json.containsKey("lon")) {
                 place.setLatitude(Double.parseDouble(json.get("lat").toString()));
                 place.setLongitude(Double.parseDouble(json.get("lon").toString()));
             }
 
-            // Тип (OpenStreetMap: class + type)
             String osmClass = (String) json.get("class");
             String osmType = (String) json.get("type");
             if (osmClass != null && osmType != null) {
                 place.setTypes(osmClass + ":" + osmType);
             }
 
-            // OpenStreetMap няма рейтинги, opening hours, phone - оставяме null
             place.setRating(null);
             place.setUserRatingsTotal(null);
             place.setCurrentlyOpen(null);
@@ -211,7 +202,7 @@ public class GooglePlacesService {
             place.setWebsite(null);
 
             return place;
-            
+
         } catch (Exception e) {
             log.error("Error parsing place: {}", e.getMessage(), e);
             return null;

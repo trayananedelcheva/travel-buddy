@@ -10,7 +10,7 @@ import com.sap.travel_buddy.mapper.TripMapper;
 import com.sap.travel_buddy.repository.PlaceRepository;
 import com.sap.travel_buddy.repository.TripRepository;
 import com.sap.travel_buddy.repository.WeatherDataRepository;
-import com.sap.travel_buddy.service.external.GooglePlacesService;
+import com.sap.travel_buddy.service.external.OpenStreetMapService;
 import com.sap.travel_buddy.service.external.WeatherService;
 import com.sap.travel_buddy.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
@@ -36,7 +36,7 @@ public class TripService {
     private final PlaceRepository placeRepository;
     private final WeatherDataRepository weatherDataRepository;
     private final TripMapper tripMapper;
-    private final GooglePlacesService googlePlacesService;
+    private final OpenStreetMapService openStreetMapService;
     private final WeatherService weatherService;
     private final PlaceService placeService;
 
@@ -61,7 +61,7 @@ public class TripService {
         List<Place> places = new ArrayList<>();
         if (request.getPlaceSearchQueries() != null) {
             for (String query : request.getPlaceSearchQueries()) {
-                List<Place> foundPlaces = googlePlacesService.searchPlacesByText(
+                List<Place> foundPlaces = openStreetMapService.searchPlacesByText(
                     query,
                     request.getStartLatitude(),
                     request.getStartLongitude(),

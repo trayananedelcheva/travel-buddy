@@ -28,17 +28,6 @@ public class WebClientConfig {
     }
 
     /**
-     * WebClient за Google Places API (deprecated - използва се openStreetMapWebClient)
-     */
-    @Bean(name = "googlePlacesWebClient")
-    @Deprecated
-    public WebClient googlePlacesWebClient(@Value("${google.places.base-url:https://maps.googleapis.com/maps/api/place}") String baseUrl) {
-        return WebClient.builder()
-                .baseUrl(baseUrl)
-                .build();
-    }
-
-    /**
      * WebClient за Weather API
      */
     @Bean(name = "weatherWebClient")

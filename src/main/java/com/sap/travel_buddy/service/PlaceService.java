@@ -5,7 +5,7 @@ import com.sap.travel_buddy.dto.PlaceDto;
 import com.sap.travel_buddy.dto.PlaceSearchRequest;
 import com.sap.travel_buddy.mapper.PlaceMapper;
 import com.sap.travel_buddy.repository.PlaceRepository;
-import com.sap.travel_buddy.service.external.GooglePlacesService;
+import com.sap.travel_buddy.service.external.OpenStreetMapService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,11 +24,11 @@ import java.util.stream.Collectors;
 public class PlaceService {
 
     private final PlaceRepository placeRepository;
-    private final GooglePlacesService googlePlacesService;
+    private final OpenStreetMapService openStreetMapService;
     private final PlaceMapper placeMapper;
 
     /**
-     * Търсене на места (използва Google Places API)
+    * Търсене на места (използва OpenStreetMap Nominatim)
      */
     @Transactional
     public List<PlaceDto> searchPlaces(PlaceSearchRequest request) {
@@ -38,7 +38,7 @@ public class PlaceService {
         
         if (request.getQuery() != null && !request.getQuery().isEmpty()) {
             // Text search
-            places = googlePlacesService.searchPlacesByText(
+            places = openStreetMapService.searchPlacesByText(
                 request.getQuery(),
                 request.getLatitude(),
                 request.getLongitude(),
@@ -46,7 +46,7 @@ public class PlaceService {
             );
         } else if (request.getLatitude() != null && request.getLongitude() != null) {
             // Nearby search
-            places = googlePlacesService.searchNearbyPlaces(
+            places = openStreetMapService.searchNearbyPlaces(
                 request.getLatitude(),
                 request.getLongitude(),
                 request.getRadius(),
@@ -87,7 +87,7 @@ public class PlaceService {
         }
 
         // Ако няма в базата, взимаме от Google API
-        Place place = googlePlacesService.getPlaceDetails(googlePlaceId);
+        Place place = openStreetMapService.getPlaceDetails(googlePlaceId);
         if (place != null) {
             place = saveOrUpdatePlace(place);
             return Optional.of(placeMapper.toDto(place));
