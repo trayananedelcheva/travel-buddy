@@ -18,6 +18,11 @@ public class PlaceDto {
     private String googlePlaceId;
     private String name;
     private String address;
+    private String formattedAddress;
+    private String locality;
+    private String region;
+    private String country;
+    private String postcode;
     private Double latitude;
     private Double longitude;
     private Double rating;
@@ -25,7 +30,12 @@ public class PlaceDto {
     private LocalTime openingTime;
     private LocalTime closingTime;
     private Boolean currentlyOpen;
+    private Integer distanceMeters;
+    private String timezone;
+    private String fsqLink;
     private String types;
+    private String categoryIds;
     private String phoneNumber;
     private String website;
+    private String photoUrl;
 }

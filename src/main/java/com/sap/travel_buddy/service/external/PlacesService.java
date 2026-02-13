@@ -9,6 +9,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +23,8 @@ import java.util.Map;
 public class PlacesService {
 
     private static final String API_VERSION = "2025-06-17";
-        private static final String SEARCH_PATH = "/places/search";
+    private static final String SEARCH_PATH = "/places/search";
+    private static final String DETAILS_FIELDS = "hours,rating";
 
     private final WebClient webClient;
     private final FoursquareConfig config;
@@ -42,8 +44,11 @@ public class PlacesService {
         }
 
         String uri = buildSearchUri(query, latitude, longitude, radius);
+        log.info("[PlacesService] Foursquare searchByText uri={}", uri);
         Map<String, Object> response = getForMap(uri);
-        return parseFoursquareResponse(response);
+        List<Place> places = parseFoursquareResponse(response);
+        log.info("[PlacesService] searchByText parsed places={}", places.size());
+        return places;
     }
 
     /**
@@ -56,22 +61,33 @@ public class PlacesService {
         }
 
         String uri = buildSearchUri(type, latitude, longitude, radius);
+        log.info("[PlacesService] Foursquare searchNearby uri={}", uri);
         Map<String, Object> response = getForMap(uri);
-        return parseFoursquareResponse(response);
+        List<Place> places = parseFoursquareResponse(response);
+        log.info("[PlacesService] searchNearby parsed places={}", places.size());
+        return places;
     }
 
     /**
      * Vzimane na detayli za konkretno myasto (po Foursquare fsq_place_id)
      */
     public Place getPlaceDetails(String placeId) {
+        return getPlaceDetails(placeId, null);
+    }
+
+    public Place getPlaceDetails(String placeId, String fields) {
         if (placeId == null || placeId.isBlank()) {
             return null;
         }
 
-        String uri = UriComponentsBuilder.fromUriString(resolveBaseUrl())
-            .path("/places/" + placeId)
-            .build()
-            .toUriString();
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(resolveBaseUrl())
+            .path("/places/" + placeId);
+
+        if (fields != null && !fields.isBlank()) {
+            builder.queryParam("fields", fields);
+        }
+
+        String uri = builder.build().toUriString();
 
         Map<String, Object> response = getForMap(uri);
         return response != null ? parsePlace(response) : null;
@@ -195,9 +211,14 @@ public class PlacesService {
                     String fsqPlaceId = (String) result.get("fsq_place_id");
                     if (fsqPlaceId != null) {
                         try {
+                            enrichPlaceWithDetails(fsqPlaceId, place);
+                        } catch (Exception e) {
+                            log.debug("Could not enrich place details for: {}", fsqPlaceId);
+                        }
+                        try {
                             List<String> photos = getPlacePhotos(fsqPlaceId);
                             if (!photos.isEmpty()) {
-                                place.setWebsite(photos.get(0));
+                                place.setPhotoUrl(photos.get(0));
                             }
                         } catch (Exception e) {
                             log.debug("Could not load photos for place: {}", fsqPlaceId);
@@ -207,6 +228,9 @@ public class PlacesService {
             }
         }
 
+        log.info("[PlacesService] parseFoursquareResponse results={} places={}",
+            results != null ? results.size() : 0,
+            places.size());
         return places;
     }
 
@@ -233,6 +257,11 @@ public class PlacesService {
                     address = (String) location.get("address");
                 }
                 place.setAddress(address);
+                place.setFormattedAddress((String) location.get("formatted_address"));
+                place.setLocality((String) location.get("locality"));
+                place.setRegion((String) location.get("region"));
+                place.setCountry((String) location.get("country"));
+                place.setPostcode((String) location.get("postcode"));
             }
 
             if (json.containsKey("rating")) {
@@ -251,19 +280,48 @@ public class PlacesService {
             List categories = (List) json.get("categories");
             if (categories != null && !categories.isEmpty()) {
                 List<String> categoryNames = new ArrayList<>();
+                List<String> categoryIds = new ArrayList<>();
                 for (Object catObj : categories) {
                     Map<String, Object> cat = (Map<String, Object>) catObj;
                     String catName = (String) cat.get("name");
-                    if (catName != null) categoryNames.add(catName);
+                    String catId = (String) cat.get("fsq_category_id");
+                    if (catName != null) {
+                        categoryNames.add(catName);
+                    }
+                    if (catId != null) {
+                        categoryIds.add(catId);
+                    }
                 }
                 place.setTypes(String.join(",", categoryNames));
+                place.setCategoryIds(String.join(",", categoryIds));
             }
 
             Map<String, Object> hours = (Map<String, Object>) json.get("hours");
             if (hours != null) {
+                Object openNow = hours.get("open_now");
+                if (openNow instanceof Boolean) {
+                    place.setCurrentlyOpen((Boolean) openNow);
+                }
+
                 List<Map<String, Object>> regularHours = (List<Map<String, Object>>) hours.get("regular");
                 if (regularHours != null && !regularHours.isEmpty()) {
-                    place.setCurrentlyOpen(true);
+                    Map<String, Object> firstEntry = regularHours.get(0);
+                    LocalTime openingTime = parseFoursquareTime(firstEntry.get("open"));
+                    LocalTime closingTime = parseFoursquareTime(firstEntry.get("close"));
+
+                    if (openingTime == null) {
+                        openingTime = parseFoursquareTime(firstEntry.get("start"));
+                    }
+                    if (closingTime == null) {
+                        closingTime = parseFoursquareTime(firstEntry.get("end"));
+                    }
+
+                    if (openingTime != null) {
+                        place.setOpeningTime(openingTime);
+                    }
+                    if (closingTime != null) {
+                        place.setClosingTime(closingTime);
+                    }
                 }
             }
 
@@ -273,10 +331,66 @@ public class PlacesService {
             if (json.containsKey("website")) {
                 place.setWebsite((String) json.get("website"));
             }
+            if (json.containsKey("distance")) {
+                Object distanceObj = json.get("distance");
+                if (distanceObj != null) {
+                    place.setDistanceMeters(((Number) distanceObj).intValue());
+                }
+            }
+            if (json.containsKey("timezone")) {
+                place.setTimezone((String) json.get("timezone"));
+            }
+            if (json.containsKey("link")) {
+                place.setFsqLink((String) json.get("link"));
+            }
 
             return place;
         } catch (Exception e) {
             log.warn("Error parsing place: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private void enrichPlaceWithDetails(String fsqPlaceId, Place place) {
+        Place details = getPlaceDetails(fsqPlaceId, DETAILS_FIELDS);
+        if (details == null) {
+            return;
+        }
+
+        if (place.getRating() == null) {
+            place.setRating(details.getRating());
+        }
+        if (place.getOpeningTime() == null) {
+            place.setOpeningTime(details.getOpeningTime());
+        }
+        if (place.getClosingTime() == null) {
+            place.setClosingTime(details.getClosingTime());
+        }
+        if (place.getCurrentlyOpen() == null) {
+            place.setCurrentlyOpen(details.getCurrentlyOpen());
+        }
+    }
+
+    private LocalTime parseFoursquareTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        String raw = value.toString().trim();
+        if (raw.isEmpty()) {
+            return null;
+        }
+
+        String normalized = raw.replace(":", "");
+        if (normalized.length() != 4) {
+            return null;
+        }
+
+        try {
+            int hour = Integer.parseInt(normalized.substring(0, 2));
+            int minute = Integer.parseInt(normalized.substring(2, 4));
+            return LocalTime.of(hour, minute);
+        } catch (Exception e) {
             return null;
         }
     }

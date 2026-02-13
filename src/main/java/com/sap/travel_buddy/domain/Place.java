@@ -29,6 +29,16 @@ public class Place {
 
     private String address;
 
+    private String formattedAddress;
+
+    private String locality;
+
+    private String region;
+
+    private String country;
+
+    private String postcode;
+
     private Double latitude;
 
     private Double longitude;
@@ -43,10 +53,21 @@ public class Place {
 
     private Boolean currentlyOpen; // Дали е отворено в момента
 
+    private Integer distanceMeters;
+
+    private String timezone;
+
+    private String fsqLink;
+
     @Column(length = 1000)
     private String types; // Типове на мястото (ресторант, музей и т.н.), съхранени като comma-separated
+
+    @Column(length = 1000)
+    private String categoryIds; // Foursquare category ids (comma-separated)
 
     private String phoneNumber;
 
     private String website;
+
+    private String photoUrl;
 }

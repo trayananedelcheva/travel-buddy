@@ -87,7 +87,7 @@ public class PlaceService {
         }
 
         // Ако няма в базата, взимаме от Google API
-        Place place = placesService.getPlaceDetails(googlePlaceId);
+        Place place = placesService.getPlaceDetails(googlePlaceId, "hours,rating");
         if (place != null) {
             place = saveOrUpdatePlace(place);
             return Optional.of(placeMapper.toDto(place));
@@ -147,6 +147,11 @@ public class PlaceService {
     private void updatePlaceData(Place existing, Place newData) {
         existing.setName(newData.getName());
         existing.setAddress(newData.getAddress());
+        existing.setFormattedAddress(newData.getFormattedAddress());
+        existing.setLocality(newData.getLocality());
+        existing.setRegion(newData.getRegion());
+        existing.setCountry(newData.getCountry());
+        existing.setPostcode(newData.getPostcode());
         existing.setLatitude(newData.getLatitude());
         existing.setLongitude(newData.getLongitude());
         existing.setRating(newData.getRating());
@@ -154,9 +159,14 @@ public class PlaceService {
         existing.setOpeningTime(newData.getOpeningTime());
         existing.setClosingTime(newData.getClosingTime());
         existing.setCurrentlyOpen(newData.getCurrentlyOpen());
+        existing.setDistanceMeters(newData.getDistanceMeters());
+        existing.setTimezone(newData.getTimezone());
+        existing.setFsqLink(newData.getFsqLink());
         existing.setTypes(newData.getTypes());
+        existing.setCategoryIds(newData.getCategoryIds());
         existing.setPhoneNumber(newData.getPhoneNumber());
         existing.setWebsite(newData.getWebsite());
+        existing.setPhotoUrl(newData.getPhotoUrl());
     }
 
     /**
